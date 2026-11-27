@@ -1,0 +1,209 @@
+@import 'tailwindcss';
+@import '@fontsource/inter/400.css';
+@import '@fontsource/inter/500.css';
+@import '@fontsource/inter/600.css';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/500.css';
+
+/* ---------------------------------------------------------------------------
+ * CyberThreat Atlas design tokens. Mirrors src/design/tokens.ts (used by WebGL).
+ * ------------------------------------------------------------------------- */
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', monospace;
+
+  /* Default theme "Mist": mid-tone gray-slate. No neon, no deep black, no pure white.
+   * The optional "Light" theme overrides these under [data-theme='light'] below. */
+  --color-bg: #c3c9cf;
+  --color-bg-2: #cbd0d5;
+  --color-panel: #d2d6da;
+  --color-elevated: #c4cacf;
+  --color-line: #b5bcc3;
+  --color-line-strong: #9fa7b0;
+
+  --color-ink: #1b2128;
+  --color-ink-2: #3f4955;
+  --color-ink-3: #66717d;
+
+  --color-ocean: #b3c0cc;
+  --color-land: #dcd8cf;
+  --color-border-geo: #8b949e;
+  --color-selected: #2f4052;
+  --color-hovered: #b3bfca;
+
+  /* Severity — desaturated so they read as signal, not decoration. */
+  --color-sev-critical: #ac4a44;
+  --color-sev-high: #b37036;
+  --color-sev-medium: #a68a3a;
+  --color-sev-low: #528270;
+  --color-sev-info: #537493;
+
+  --color-accent: #4a6681;
+  --color-demo: #6e561c;
+  --color-demo-bg: #e2d8bd;
+  --color-demo-line: #c2b086;
+  --color-danger-bg: #e6d3d0;
+  --color-danger-line: #c9a09b;
+  --color-halo: #dcd8cf;
+  --color-selection: #aebfd0;
+
+  --radius-xs: 2px;
+  --radius-sm: 3px;
+  --radius-md: 4px;
+
+  --text-2xs: 10.5px;
+  --text-2xs--line-height: 14px;
+  --text-xs: 11.5px;
+  --text-xs--line-height: 16px;
+  --text-sm: 12.5px;
+  --text-sm--line-height: 18px;
+  --text-base: 13.5px;
+  --text-base--line-height: 20px;
+}
+
+/* Optional "Light" theme (paler stone surfaces). */
+[data-theme='light'] {
+  --color-bg: #e4e7eb;
+  --color-bg-2: #eceef1;
+  --color-panel: #f2f3f5;
+  --color-elevated: #e3e7eb;
+  --color-line: #d5dae0;
+  --color-line-strong: #bec6ce;
+  --color-ink: #1d242c;
+  --color-ink-2: #4a5563;
+  --color-ink-3: #7a8592;
+  --color-ocean: #c9d4de;
+  --color-land: #ebe8e2;
+  --color-border-geo: #a3acb6;
+  --color-selected: #34475a;
+  --color-hovered: #c8d2dc;
+  --color-accent: #4f6d88;
+  --color-demo: #7d6527;
+  --color-demo-bg: #f1ead8;
+  --color-demo-line: #d8c9a1;
+  --color-danger-bg: #f5e6e4;
+  --color-danger-line: #ddb5b1;
+  --color-halo: #ebe8e2;
+  --color-selection: #c9d6e2;
+}
+
+/* Optional "Black" theme: true-black surfaces, neutral graphite land, muted accents. */
+[data-theme='black'] {
+  --color-bg: #000000;
+  --color-bg-2: #070707;
+  --color-panel: #0c0c0c;
+  --color-elevated: #1a1a1a;
+  --color-line: #1f1f1f;
+  --color-line-strong: #2e2e2e;
+  --color-ink: #e8e8e6;
+  --color-ink-2: #a6a6a2;
+  --color-ink-3: #6e6e6a;
+  --color-ocean: #050505;
+  --color-land: #1e1e1e;
+  --color-border-geo: #4a4a4a;
+  --color-selected: #d9d9d6;
+  --color-hovered: #5a5a58;
+  --color-accent: #9fb2c4;
+  --color-demo: #c9b27a;
+  --color-demo-bg: #17140c;
+  --color-demo-line: #3d3420;
+  --color-danger-bg: #1a0e0e;
+  --color-danger-line: #4a2626;
+  --color-halo: #000000;
+  --color-selection: #2b3640;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    margin: 0;
+    background: var(--color-bg);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    font-feature-settings: 'cv11', 'ss01', 'tnum';
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+  ::selection {
+    background: var(--color-selection);
+  }
+  :focus-visible {
+    outline: 1.5px solid var(--color-accent);
+    outline-offset: 1px;
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-line-strong) transparent;
+  }
+  input,
+  select,
+  button {
+    font: inherit;
+    color: inherit;
+  }
+  input[type='datetime-local']::-webkit-calendar-picker-indicator {
+    filter: none;
+  }
+}
+
+@layer components {
+  .label-caps {
+    font-size: 10.5px;
+    line-height: 14px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-ink-3);
+    font-weight: 500;
+  }
+  .mono {
+    font-family: var(--font-mono);
+    font-feature-settings: 'zero';
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  .hairline {
+    border-color: var(--color-line);
+  }
+  .skeleton {
+    background: linear-gradient(90deg, var(--color-elevated) 0%, var(--color-bg-2) 50%, var(--color-elevated) 100%);
+    background-size: 200% 100%;
+    animation: skeleton 1.4s ease-in-out infinite;
+  }
+  .country-label {
+    position: absolute;
+    left: 0;
+    top: 0;
+    pointer-events: none;
+    white-space: nowrap;
+    font-size: 10.5px;
+    letter-spacing: 0.02em;
+    color: var(--color-ink-2);
+    text-shadow: 0 0 3px var(--color-halo), 0 0 2px var(--color-halo), 0 0 1px var(--color-halo);
+    will-change: transform, opacity;
+  }
+  .country-label[data-emph='1'] {
+    color: var(--color-ink);
+    font-weight: 500;
+  }
+}
+
+@keyframes skeleton {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+}

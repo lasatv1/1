@@ -1,0 +1,131 @@
+# CyberThreat Atlas — complete running system.
+#
+#   ./scripts/new-secrets.ps1          # once: generates DB passwords + backend/.env
+#   docker compose up -d --build       # start (http://localhost:8080)
+#   docker compose ps                  # health of every service
+#   docker compose logs -f worker      # watch syncs
+#
+# Online deployment adds HTTPS on top: see docker-compose.prod.yml and docs/OPERATIONS.md
+#
+# Networks: `edge` carries web traffic (frontend <-> API). `data` is internal-only, so
+# Postgres and Redis are never reachable from outside the stack.
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "5" }
+
+x-backend: &backend
+  build: ./backend
+  env_file: [./backend/.env]
+  secrets: [db_app_password]
+  volumes:
+    - ./frontend/public/data/world.topo.json:/srv/data/world.topo.json:ro
+  read_only: true
+  tmpfs: [/tmp]
+  restart: unless-stopped
+  logging: *logging
+
+x-backend-env: &backend-env
+  CTA_DATABASE_URL: postgresql://cta_app@db:5432/cta
+  CTA_DATABASE_PASSWORD_FILE: /run/secrets/db_app_password
+  CTA_REDIS_URL: redis://redis:6379/0
+  CTA_COUNTRIES_TOPOJSON: /srv/data/world.topo.json
+
+services:
+  frontend:
+    build: ./frontend
+    ports: ["${CTA_HTTP_PORT:-8080}:80"]
+    depends_on:
+      backend: { condition: service_healthy }
+    networks: [edge]
+    restart: unless-stopped
+    logging: *logging
+
+  # Stateless API; can be scaled: docker compose up -d --scale backend=3
+  backend:
+    <<: *backend
+    environment:
+      <<: *backend-env
+      CTA_RUN_SCHEDULER: "false"
+      CTA_CORS_ORIGINS: ${CTA_PUBLIC_ORIGIN:-http://localhost:8080}
+    expose: ["8000"]
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    networks: [edge, data]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/health/ready', timeout=3).status == 200 else 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Exactly one worker: fetches sources, writes Postgres, invalidates the cache.
+  worker:
+    <<: *backend
+    command: ["python", "-m", "app.worker"]
+    environment:
+      <<: *backend-env
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    networks: [data, egress]
+
+  db:
+    image: ${CTA_POSTGIS_IMAGE:-postgis/postgis:17-3.5}
+    environment:
+      POSTGRES_DB: cta
+      POSTGRES_USER: cta_admin
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+    secrets: [db_password, db_app_password]
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+      - ./backend/db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cta_admin -d cta"]
+      interval: 5s
+      retries: 20
+    networks: [data]
+    restart: unless-stopped
+    shm_size: 256mb
+    logging: *logging
+
+  redis:
+    image: redis:7-alpine
+    # Pure cache: no persistence, bounded memory, least-recently-used eviction.
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 20
+    networks: [data]
+    restart: unless-stopped
+    logging: *logging
+
+  # Nightly logical backup of the `cta` schema into ./backups (14-day retention).
+  db-backup:
+    image: ${CTA_POSTGIS_IMAGE:-postgis/postgis:17-3.5}
+    entrypoint: ["/bin/sh", "/scripts/backup-loop.sh"]
+    secrets: [db_password]
+    volumes:
+      - ./backups:/backups
+      - ./deploy/backup-loop.sh:/scripts/backup-loop.sh:ro
+    depends_on:
+      db: { condition: service_healthy }
+    networks: [data]
+    restart: unless-stopped
+    logging: *logging
+
+networks:
+  edge: {}
+  data: { internal: true }   # no route to the internet or the host
+  egress: {}                 # outbound only, for the worker to reach intelligence feeds
+
+secrets:
+  db_password:
+    file: ./backend/db/.db_password
+  db_app_password:
+    file: ./backend/db/.db_app_password
+
+volumes:
+  dbdata:

@@ -1,0 +1,75 @@
+# $0, no-credit-card deployment (docs/DEPLOY-FREE.md, option 1).
+# Copy to .github/workflows/pages.yml in a PUBLIC GitHub repository, then:
+#   Settings → Pages → Source: "GitHub Actions"
+#   Settings → Secrets and variables → Actions → add CTA_DATABASE_URL (Neon) and any API keys
+#
+# Every run: sync the feeds into Postgres → export a JSON snapshot → build the site →
+# publish to GitHub Pages. Without CTA_DATABASE_URL it still works, but keeps no history.
+name: Publish site
+
+on:
+  schedule:
+    - cron: "17 * * * *"      # hourly (minute 17 avoids the busy top of the hour)
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - run: pip install -r backend/requirements.txt
+
+      - name: Sync feeds and export snapshot
+        working-directory: backend
+        env:
+          CTA_DATABASE_URL: ${{ secrets.CTA_DATABASE_URL }}            # Neon connection string, sslmode=require
+          CTA_OTX_API_KEY: ${{ secrets.CTA_OTX_API_KEY }}              # optional
+          CTA_ABUSEIPDB_API_KEY: ${{ secrets.CTA_ABUSEIPDB_API_KEY }}  # optional
+          CTA_ABUSECH_AUTH_KEY: ${{ secrets.CTA_ABUSECH_AUTH_KEY }}    # optional
+        run: python -m app.export --sync --out ../frontend/public/snapshot
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build site
+        working-directory: frontend
+        env:
+          VITE_BASE: /${{ github.event.repository.name }}/
+          VITE_DATA_SOURCE: snapshot
+        run: |
+          npm ci
+          npx vite build
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

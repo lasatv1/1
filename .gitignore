@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.venv/
+__pycache__/
+.env
+*.mmdb
+backend/db/.db_password
+backend/db/.db_app_password
+backend-smoke.log
+frontend/scripts/.cache/
+backups/
+frontend/public/snapshot/
+.claude/
+frontend/.claude/
+*.log
+**/.pytest_cache/

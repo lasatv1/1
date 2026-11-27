@@ -1,0 +1,29 @@
+# Online deployment overlay: HTTPS via Caddy (automatic Let's Encrypt certificates).
+#
+#   $env:CTA_DOMAIN="atlas.example.org"; $env:CTA_PUBLIC_ORIGIN="https://atlas.example.org"
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# Only Caddy publishes ports (80/443). The frontend is no longer exposed directly.
+services:
+  frontend:
+    ports: !reset []
+
+  caddy:
+    image: caddy:2-alpine
+    ports: ["80:80", "443:443", "443:443/udp"]
+    environment:
+      CTA_DOMAIN: ${CTA_DOMAIN:?set CTA_DOMAIN to your public hostname}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [frontend]
+    networks: [edge]
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "5" }
+
+volumes:
+  caddy_data:
+  caddy_config:

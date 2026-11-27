@@ -1,0 +1,8 @@
+.venv
+__pycache__
+.pytest_cache
+.env
+*.mmdb
+db/.db_password
+db/.db_app_password
+tests
