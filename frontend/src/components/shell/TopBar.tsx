@@ -1,4 +1,6 @@
-import { Search, FlaskConical, RefreshCw, Radio } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Search, FlaskConical, RefreshCw, Radio, LogOut, Users } from 'lucide-react';
+import { counterEnabled, subscribeCounter } from '@/lib/counter';
 import { useAppStore, type Overlay } from '@/state/appStore';
 import { useDataStore } from '@/state/dataStore';
 import { cx, Kbd } from '@/components/common/ui';
@@ -41,6 +43,7 @@ export function TopBar() {
   const backend = useDataStore((s) => s.backendAvailable);
   const pending = useDataStore((s) => s.pendingUpdates);
   const status = useDataStore((s) => s.datasetStatus);
+  const auth = useDataStore((s) => s.auth);
 
   return (
     <header className="flex h-11 shrink-0 items-center border-b border-line bg-bg-2 px-3">
@@ -101,6 +104,7 @@ export function TopBar() {
             <RefreshCw size={12} /> {pending} new observations
           </button>
         )}
+        {counterEnabled && <VisitorBadge />}
         <ThemeSwitch />
         <DataModeSwitch mode={mode} backend={backend} loading={status === 'loading'} />
         <button
@@ -115,8 +119,47 @@ export function TopBar() {
             <Kbd>/</Kbd>
           </span>
         </button>
+        {auth === 'unlocked' && <SignOutButton />}
       </div>
     </header>
+  );
+}
+
+/** Live page-open count (same counters as the sign-in page). */
+function VisitorBadge() {
+  const [opens, setOpens] = useState<number | null>(null);
+  const [visitors, setVisitors] = useState<number | null>(null);
+  useEffect(() => {
+    const a = subscribeCounter('opens', setOpens);
+    const b = subscribeCounter('visitors', setVisitors);
+    return () => {
+      a();
+      b();
+    };
+  }, []);
+  return (
+    <div
+      className="hidden h-7 items-center gap-1.5 whitespace-nowrap rounded-sm border border-line px-2 text-xs text-ink-2 xl:flex"
+      title={`Live: ${opens ?? '—'} page opens, ${visitors ?? '—'} unique visitors`}
+    >
+      <Users size={13} className="text-ink-3" />
+      <span className="tabular text-ink">{opens ?? '—'}</span>
+      <span className="text-ink-3">opens</span>
+    </div>
+  );
+}
+
+function SignOutButton() {
+  return (
+    <button
+      type="button"
+      onClick={() => useDataStore.getState().logout()}
+      className="flex h-7 w-7 items-center justify-center rounded-sm border border-line bg-panel text-ink-3 hover:border-line-strong hover:text-ink"
+      aria-label="Sign out"
+      title="Sign out"
+    >
+      <LogOut size={13} />
+    </button>
   );
 }
 

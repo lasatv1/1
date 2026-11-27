@@ -2,12 +2,18 @@
 
     python -m app.export --out ../frontend/public/snapshot            # export what's stored
     python -m app.export --sync --out ../frontend/public/snapshot     # sync feeds first
+    python -m app.export --sync --encrypt --out ...                   # login-protected site
 
 Writes, in the same JSON shapes the API returns:
     meta.json     generation time, window, counts, schema version
     sources.json  intelligence sources with status and provenance
     events.json   observations in the window (newest MAX_EVENTS if larger)
     network.json  stored per-country network statistics
+
+With --encrypt, only meta.json (public, no data) and data.enc are written: the whole
+bundle is gzip-compressed and AES-256-GCM encrypted with a key derived from the
+credentials in CTA_SITE_USER / CTA_SITE_PASSWORD (environment only, never CLI args, so
+they cannot appear in process listings or CI logs). See app/snapshot_crypto.py.
 
 With CTA_DATABASE_URL set (e.g. a free Neon database) history accumulates across runs;
 without it, each run exports only what the feeds currently publish.
@@ -32,6 +38,7 @@ from .security import configure_logging
 
 log = logging.getLogger("cta.export")
 SCHEMA_VERSION = 1
+ENCRYPTED_SCHEMA_VERSION = 2
 MAX_EVENTS = 60_000  # matches the frontend's live-mode cap
 PAGE = 5_000
 
@@ -43,7 +50,7 @@ def _write(path: Path, data) -> None:
     os.replace(tmp, path)
 
 
-async def export(out: Path, days: int, sync: bool) -> dict:
+async def export(out: Path, days: int, sync: bool, encrypt: bool = False) -> dict:
     settings = get_settings()
     store = await asyncio.to_thread(open_store, settings)
     try:
@@ -70,9 +77,6 @@ async def export(out: Path, days: int, sync: bool) -> dict:
         network = {k: v.model_dump(mode="json", by_alias=True) for k, v in (await asyncio.to_thread(store.all_network)).items()}
 
         out.mkdir(parents=True, exist_ok=True)
-        _write(out / "events.json", {"items": items, "total": total, "truncated": total > len(items)})
-        _write(out / "sources.json", sources)
-        _write(out / "network.json", network)
         meta = {
             "schema": SCHEMA_VERSION,
             "generatedAt": now.isoformat().replace("+00:00", "Z"),
@@ -81,6 +85,27 @@ async def export(out: Path, days: int, sync: bool) -> dict:
             "events": len(items),
             "store": store.name,
         }
+        events_doc = {"items": items, "total": total, "truncated": total > len(items)}
+
+        if encrypt:
+            from .snapshot_crypto import encrypt_bundle  # noqa: PLC0415
+
+            user, password = os.environ.get("CTA_SITE_USER", ""), os.environ.get("CTA_SITE_PASSWORD", "")
+            if not user or not password:
+                raise SystemExit("--encrypt needs CTA_SITE_USER and CTA_SITE_PASSWORD in the environment")
+            bundle = {"meta": meta, "sources": sources, "events": events_doc, "network": network}
+            blob, kdf = encrypt_bundle(bundle, user, password)
+            tmp = out / "data.enc.tmp"
+            tmp.write_bytes(blob)
+            os.replace(tmp, out / "data.enc")
+            # Public meta reveals nothing about the data: only how to derive the key.
+            public = {"schema": ENCRYPTED_SCHEMA_VERSION, "encrypted": True, "file": "data.enc", "cipher": "AES-GCM", "kdf": kdf}
+            _write(out / "meta.json", public)
+            return meta
+
+        _write(out / "events.json", events_doc)
+        _write(out / "sources.json", sources)
+        _write(out / "network.json", network)
         _write(out / "meta.json", meta)  # written last: its presence means the snapshot is complete
         return meta
     finally:
@@ -92,12 +117,14 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--out", required=True, type=Path, help="output directory (e.g. ../frontend/public/snapshot)")
     p.add_argument("--days", type=int, default=365, help="observation window to export (default 365)")
     p.add_argument("--sync", action="store_true", help="run one sync cycle before exporting")
+    p.add_argument("--encrypt", action="store_true", help="encrypt with CTA_SITE_USER/CTA_SITE_PASSWORD (login-protected site)")
     args = p.parse_args(argv)
     if not 1 <= args.days <= 366:
         p.error("--days must be between 1 and 366")
     configure_logging()
-    meta = asyncio.run(export(args.out, args.days, args.sync))
-    print(f"snapshot written to {args.out}: {meta['events']} events, generated {meta['generatedAt']}")
+    meta = asyncio.run(export(args.out, args.days, args.sync, args.encrypt))
+    kind = "encrypted snapshot" if args.encrypt else "snapshot"
+    print(f"{kind} written to {args.out}: {meta['events']} events, generated {meta['generatedAt']}")
     return 0
 
 

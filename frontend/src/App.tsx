@@ -13,6 +13,7 @@ import { Timeline } from '@/components/timeline/Timeline';
 import { SearchPalette } from '@/components/search/SearchPalette';
 import { Overlays } from '@/components/overlays/Overlays';
 import { Button, ErrorState, IconButton } from '@/components/common/ui';
+import { LoginPage } from '@/components/auth/LoginPage';
 
 // The WebGL bundle (three.js) is split out and loaded on demand.
 const GlobeView = lazy(() => import('@/components/globe/GlobeView'));
@@ -36,6 +37,7 @@ export function App() {
   const leftOpen = useAppStore((s) => s.leftOpen);
   const rightOpen = useAppStore((s) => s.rightOpen);
   const compact = useAppStore((s) => s.compact);
+  const auth = useDataStore((s) => s.auth);
   useKeyboardShortcuts();
 
   // Responsive: desktop first; on narrower screens panels start collapsed so the globe
@@ -66,6 +68,9 @@ export function App() {
     if (mode !== 'live' || origin !== 'api') return;
     return subscribeToUpdates((m) => useDataStore.getState().notifyUpdate(m.newRecords));
   }, [mode, origin]);
+
+  // Login-protected deployment: nothing but the sign-in screen until the data is decrypted.
+  if (auth === 'locked') return <LoginPage />;
 
   return (
     <div className="flex h-full w-full min-w-[720px] flex-col">

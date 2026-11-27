@@ -3,6 +3,7 @@
  * third-party intelligence APIs directly — keys stay server-side.
  */
 import type { CountryNetworkFacts, Dataset, IntelSource, ThreatEvent } from '@/types/intel';
+import { decryptSnapshot, type KdfParams } from '@/lib/auth/crypto';
 
 const BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? '/api';
 const MAX_EVENTS = 60_000;
@@ -88,6 +89,25 @@ export interface SnapshotMeta {
   events: number;
 }
 
+/** Public meta.json of a login-protected snapshot: only key-derivation parameters. */
+export interface EncryptedSnapshotMeta {
+  schema: 2;
+  encrypted: true;
+  file: string;
+  cipher: 'AES-GCM';
+  kdf: KdfParams;
+}
+
+export type AnySnapshotMeta = SnapshotMeta | EncryptedSnapshotMeta;
+export const isEncrypted = (m: AnySnapshotMeta | null): m is EncryptedSnapshotMeta => !!m && 'encrypted' in m && m.encrypted === true;
+
+interface SnapshotBundle {
+  meta: SnapshotMeta;
+  sources: IntelSource[];
+  events: EventPage;
+  network: Record<string, CountryNetworkFacts>;
+}
+
 const SNAPSHOT = `${import.meta.env.BASE_URL}snapshot/`;
 
 async function getStatic<T>(file: string, signal?: AbortSignal): Promise<T> {
@@ -97,22 +117,41 @@ async function getStatic<T>(file: string, signal?: AbortSignal): Promise<T> {
   return (await res.json()) as T;
 }
 
-export async function checkSnapshot(signal?: AbortSignal): Promise<SnapshotMeta | null> {
+export async function checkSnapshot(signal?: AbortSignal): Promise<AnySnapshotMeta | null> {
   try {
-    const meta = await getStatic<SnapshotMeta>('meta.json', signal);
+    const meta = await getStatic<AnySnapshotMeta>('meta.json', signal);
+    if (isEncrypted(meta)) return meta.kdf?.salt ? meta : null;
     return meta.schema === 1 && meta.generatedAt ? meta : null;
   } catch {
     return null;
   }
 }
 
-export async function loadSnapshotDataset(signal?: AbortSignal): Promise<Dataset> {
+/** Plain snapshot, or an encrypted one when the session key is supplied. */
+export async function loadSnapshotDataset(signal?: AbortSignal, keyBytes?: Uint8Array | null): Promise<Dataset> {
+  const pub = await getStatic<AnySnapshotMeta>('meta.json', signal);
+  if (isEncrypted(pub)) {
+    if (!keyBytes) throw new Error('Sign-in required');
+    const res = await fetch(`${SNAPSHOT}${pub.file}`, { signal, cache: 'no-cache' });
+    if (!res.ok) throw new ApiError(`Encrypted snapshot not available (${res.status})`, res.status);
+    const b = await decryptSnapshot<SnapshotBundle>(keyBytes, await res.arrayBuffer());
+    return buildSnapshotDataset(b.meta, b.sources, b.events, b.network);
+  }
   const [meta, sources, page, network] = await Promise.all([
     getStatic<SnapshotMeta>('meta.json', signal),
     getStatic<IntelSource[]>('sources.json', signal),
     getStatic<EventPage>('events.json', signal),
     getStatic<Record<string, CountryNetworkFacts>>('network.json', signal).catch(() => ({})),
   ]);
+  return buildSnapshotDataset(meta, sources, page, network);
+}
+
+function buildSnapshotDataset(
+  meta: SnapshotMeta,
+  sources: IntelSource[],
+  page: EventPage,
+  network: Record<string, CountryNetworkFacts>,
+): Dataset {
   const events: ThreatEvent[] = page.items.map((e) => ({ ...e, t: Date.parse(e.observedAt), isDemo: false }));
   events.sort((a, b) => a.t - b.t);
   const to = Date.parse(meta.generatedAt);

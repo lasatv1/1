@@ -1,7 +1,8 @@
 # $0, no-credit-card deployment (docs/DEPLOY-FREE.md, option 1).
 # Copy to .github/workflows/pages.yml in a PUBLIC GitHub repository, then:
 #   Settings → Pages → Source: "GitHub Actions"
-#   Settings → Secrets and variables → Actions → add CTA_DATABASE_URL (Neon) and any API keys
+#   Settings → Secrets and variables → Actions → add CTA_DATABASE_URL (Neon), CTA_SITE_USER,
+#   CTA_SITE_PASSWORD (site login) and any API keys
 #
 # Every run: sync the feeds into Postgres → export a JSON snapshot → build the site →
 # publish to GitHub Pages. Without CTA_DATABASE_URL it still works, but keeps no history.
@@ -37,14 +38,18 @@ jobs:
           cache-dependency-path: backend/requirements.txt
       - run: pip install -r backend/requirements.txt
 
-      - name: Sync feeds and export snapshot
+      - name: Sync feeds and export encrypted snapshot
         working-directory: backend
         env:
           CTA_DATABASE_URL: ${{ secrets.CTA_DATABASE_URL }}            # Neon connection string, sslmode=require
+          # Site login. The data is encrypted with a key derived from these; the run fails
+          # (and publishes nothing) if they are missing, so plaintext data is never published.
+          CTA_SITE_USER: ${{ secrets.CTA_SITE_USER }}
+          CTA_SITE_PASSWORD: ${{ secrets.CTA_SITE_PASSWORD }}
           CTA_OTX_API_KEY: ${{ secrets.CTA_OTX_API_KEY }}              # optional
           CTA_ABUSEIPDB_API_KEY: ${{ secrets.CTA_ABUSEIPDB_API_KEY }}  # optional
           CTA_ABUSECH_AUTH_KEY: ${{ secrets.CTA_ABUSECH_AUTH_KEY }}    # optional
-        run: python -m app.export --sync --out ../frontend/public/snapshot
+        run: python -m app.export --sync --encrypt --out ../frontend/public/snapshot
 
       - uses: actions/setup-node@v4
         with:
@@ -56,6 +61,8 @@ jobs:
         env:
           VITE_BASE: /${{ github.event.repository.name }}/
           VITE_DATA_SOURCE: snapshot
+          # Public live visit counters (abacus.jasoncameron.dev); remove to disable.
+          VITE_COUNTER_NAMESPACE: ${{ github.repository_owner }}-${{ github.event.repository.name }}-cta
         run: |
           npm ci
           npx vite build

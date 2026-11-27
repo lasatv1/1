@@ -14,3 +14,4 @@ frontend/public/snapshot/
 frontend/.claude/
 *.log
 **/.pytest_cache/
+*.tsbuildinfo
