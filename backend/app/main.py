@@ -1,4 +1,4 @@
-"""CyberThreat Atlas API entry point.
+"""Ruster Ball API entry point.
 
 Run locally:  uvicorn app.main:app --reload --port 8000
 In production run the API with CTA_RUN_SCHEDULER=false and one `python -m app.worker`.

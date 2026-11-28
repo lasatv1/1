@@ -6,7 +6,7 @@
 @import '@fontsource/ibm-plex-mono/500.css';
 
 /* ---------------------------------------------------------------------------
- * CyberThreat Atlas design tokens. Mirrors src/design/tokens.ts (used by WebGL).
+ * Ruster Ball design tokens. Mirrors src/design/tokens.ts (used by WebGL).
  * ------------------------------------------------------------------------- */
 @theme {
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;

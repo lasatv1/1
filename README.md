@@ -1,8 +1,8 @@
-# CyberThreat Atlas
+# Ruster Ball
 
 A geospatial cyber threat intelligence platform. The map is the main interface: a 3D globe or a flat 2D map where every country can be selected on its own. Directed arcs show relationships between countries, and every observation keeps its provenance.
 
-> CyberThreat Atlas only visualises data. It performs no scanning, probing or exploitation, and it never treats IP geolocation as attribution.
+> Ruster Ball only visualises data. It performs no scanning, probing or exploitation, and it never treats IP geolocation as attribution.
 
 ## Quick start
 

@@ -1,5 +1,5 @@
 /**
- * Thin client for the CyberThreat Atlas backend. The frontend never talks to
+ * Thin client for the Ruster Ball backend. The frontend never talks to
  * third-party intelligence APIs directly — keys stay server-side.
  */
 import type { CountryNetworkFacts, Dataset, IntelSource, ThreatEvent } from '@/types/intel';

@@ -53,7 +53,7 @@ export function IpInvestigation({ ip }: { ip: string }) {
   if (!idx.length)
     return (
       <EmptyState title={`No observations for ${ip}`}>
-        This address does not appear in the active dataset. CyberThreat Atlas does not perform live lookups, scans or probes against addresses.
+        This address does not appear in the active dataset. Ruster Ball does not perform live lookups, scans or probes against addresses.
       </EmptyState>
     );
 

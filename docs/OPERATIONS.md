@@ -1,4 +1,4 @@
-# Operating CyberThreat Atlas
+# Operating Ruster Ball
 
 This guide covers running the platform continuously, putting it online, and looking after the database and cache.
 

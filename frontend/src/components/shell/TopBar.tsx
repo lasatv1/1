@@ -17,8 +17,8 @@ function Logo() {
         <circle cx="22" cy="11" r="1.8" fill="#B5524E" />
       </svg>
       <div className="whitespace-nowrap leading-none">
-        <div className="text-[13px] font-semibold tracking-[0.01em] text-ink">CyberThreat Atlas</div>
-        <div className="mt-1 hidden text-[9.5px] uppercase tracking-[0.12em] text-ink-3 2xl:block">Geospatial threat intelligence</div>
+        <div className="text-[13px] font-semibold tracking-[0.01em] text-ink">Ruster Ball</div>
+        <div className="mt-1 hidden text-[9.5px] uppercase tracking-[0.12em] text-ink-3 2xl:block">Live world intelligence</div>
       </div>
     </div>
   );

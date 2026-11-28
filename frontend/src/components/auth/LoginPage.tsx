@@ -46,7 +46,7 @@ export function LoginPage() {
             <circle cx="22" cy="11" r="1.8" fill="#ac4a44" />
           </svg>
           <div>
-            <h1 className="text-[17px] font-semibold leading-5">CyberThreat Atlas</h1>
+            <h1 className="text-[17px] font-semibold leading-5">Ruster Ball</h1>
             <p className="text-xs text-[#6e6e6a]">Restricted access</p>
           </div>
         </div>

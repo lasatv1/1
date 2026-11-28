@@ -205,12 +205,12 @@ function About() {
   const mode = useDataStore((s) => s.dataset?.mode);
   const backend = useDataStore((s) => s.backendAvailable);
   return (
-    <Shell title="About CyberThreat Atlas">
+    <Shell title="About Ruster Ball">
       <div className="flex flex-col gap-6 text-sm leading-[21px] text-ink-2">
         <section>
           <SectionTitle>Purpose</SectionTitle>
           <p>
-            CyberThreat Atlas visualises reported cyber threat observations geographically so analysts can explore where infrastructure is located, which countries
+            Ruster Ball is a live world-intelligence globe: conflict and unrest, aircraft, ships, satellites, natural hazards, historical borders and cyber threats in one view. For cyber data it shows where infrastructure is located, which countries
             appear together in reports, and how activity changes over time. It is a visualisation system only: it performs no scanning, probing or exploitation.
           </p>
         </section>
