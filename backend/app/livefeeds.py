@@ -115,8 +115,15 @@ CONFLICT_CAP = 4000
 def gdelt_conflict(client: httpx.Client) -> dict:
     idx = client.get("https://data.gdeltproject.org/gdeltv2/lastupdate.txt")
     idx.raise_for_status()
-    url = idx.text.split("\n")[0].split()[-1].replace("http://", "https://")
-    z = client.get(url)
+    listed = idx.text.split("\n")[0].split()[-1]
+    # GDELT lists an http:// URL; its https mirror can lag a few minutes behind a new slice,
+    # so try the listed address first (following redirects) and fall back to the other.
+    z = None
+    for url in (listed, listed.replace("http://", "https://", 1)):
+        z = client.get(url, follow_redirects=True)
+        if z.status_code == 200:
+            break
+    assert z is not None
     z.raise_for_status()
     now = int(time.time())
     events: dict[str, list] = {}
