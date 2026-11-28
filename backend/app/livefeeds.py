@@ -147,7 +147,7 @@ def gdelt_conflict(client: httpx.Client) -> dict:
     return {"time": now, "source": "GDELT 2.0 Event Database", "window_s": CONFLICT_WINDOW_S, "events": rows}
 
 
-AIS_COLLECT_S = 45
+AIS_COLLECT_S = 90
 TRAIL_POINTS = 8
 TRAIL_MAX_AGE_S = 6 * 3600
 
@@ -158,7 +158,8 @@ async def _ais_collect(key: str) -> dict[int, dict]:
     ships: dict[int, dict] = {}
     sub = {"APIKey": key, "BoundingBoxes": [[[-90, -180], [90, 180]]], "FilterMessageTypes": ["PositionReport", "ShipStaticData"]}
     deadline = time.time() + AIS_COLLECT_S
-    async with websockets.connect("wss://stream.aisstream.io/v0/stream", open_timeout=20, max_size=2**20) as ws:
+    # compression=None: AISStream stalls the handshake when permessage-deflate is offered.
+    async with websockets.connect("wss://stream.aisstream.io/v0/stream", open_timeout=40, max_size=2**20, compression=None) as ws:
         await ws.send(json.dumps(sub))
         while time.time() < deadline:
             try:
