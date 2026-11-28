@@ -6,7 +6,7 @@ import { goGlobal, toggleFullscreen } from '@/components/globe/GlobeControls';
 const isTyping = (t: EventTarget | null) =>
   t instanceof HTMLElement && (t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName));
 
-/** G global · R reset · F fullscreen · Esc close · / search · Space play/pause. */
+/** G global · R reset · F fullscreen · Esc close · / search. */
 export function useKeyboardShortcuts() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -36,11 +36,6 @@ export function useKeyboardShortcuts() {
         case 'f':
         case 'F':
           toggleFullscreen(document.getElementById('globe-viewport'));
-          break;
-        case ' ':
-          if (e.target instanceof HTMLButtonElement) return;
-          e.preventDefault();
-          app.setPlayback(app.playback.playing ? { playing: false } : { playing: true, cursor: app.playback.cursor ?? app.time.from });
           break;
       }
     };

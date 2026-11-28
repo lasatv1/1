@@ -44,7 +44,8 @@ export type Inspect =
   | { kind: 'region'; id: string }
   | { kind: 'connection'; id: string }
   | { kind: 'ip'; id: string }
-  | { kind: 'event'; id: string };
+  | { kind: 'event'; id: string }
+  | { kind: 'live'; feed: string; id: string };
 
 export type Overlay = 'none' | 'analytics' | 'investigations' | 'about';
 

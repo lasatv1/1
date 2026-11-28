@@ -6,6 +6,7 @@ import { CountryProfile } from './CountryProfile';
 import { ConnectionInvestigation } from './ConnectionInvestigation';
 import { EventDetail, IpInvestigation } from './EntityViews';
 import { ComparisonView, GlobalOverview, RegionProfile } from './GroupViews';
+import { LiveEntityView } from './LiveViews';
 
 const TITLE = {
   country: 'Country intelligence profile',
@@ -14,6 +15,7 @@ const TITLE = {
   connection: 'Connection investigation',
   ip: 'IP investigation',
   event: 'Event detail',
+  live: 'Live object',
 } as const;
 
 export function RightPanel() {
@@ -77,6 +79,8 @@ export function RightPanel() {
           <ConnectionInvestigation id={inspect.id} />
         ) : inspect.kind === 'ip' ? (
           <IpInvestigation ip={inspect.id} />
+        ) : inspect.kind === 'live' ? (
+          <LiveEntityView feed={inspect.feed} id={inspect.id} />
         ) : (
           <EventDetail id={inspect.id} />
         )}

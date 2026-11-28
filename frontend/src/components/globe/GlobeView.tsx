@@ -10,6 +10,7 @@ import { Disputed } from './Disputed';
 import { ConnectionArcs } from './ConnectionArcs';
 import { ActivityMarkers } from './ActivityMarkers';
 import { CameraRig } from './CameraRig';
+import { LiveLayers } from './LiveLayers';
 import { FlatCameraRig } from './FlatCameraRig';
 import { projectionFor } from '@/lib/geo/sphere';
 import { Labels } from './Labels';
@@ -52,6 +53,7 @@ export default function GlobeView() {
             {display.disputed && <Disputed geo={geo} proj={proj} />}
             {def.visuals.includes('arcs') && <ConnectionArcs geo={geo} proj={proj} />}
             {display.markers && !def.visuals.every((v) => v === 'choropleth') && <ActivityMarkers geo={geo} proj={proj} />}
+            <LiveLayers proj={proj} />
             <Labels geo={geo} container={labelLayer} proj={proj} />
             {viewMode === 'flat' ? <FlatCameraRig /> : <CameraRig />}
           </Suspense>

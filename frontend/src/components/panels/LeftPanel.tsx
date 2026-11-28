@@ -8,6 +8,7 @@ import { severityOrder, severityLabel } from '@/design/tokens';
 import { fmtCompact, fmtInt, fmtUtc, fromUtcInput, toUtcInput } from '@/lib/format';
 import { cx, IconButton, Segmented, SeveritySwatch, StatusDot, Toggle, SOURCE_STATUS_LABEL } from '@/components/common/ui';
 import type { ThreatCategory } from '@/types/intel';
+import { LiveLayersSection } from './LiveViews';
 
 function Section({ title, children, defaultOpen = true, right, id }: { title: string; children: ReactNode; defaultOpen?: boolean; right?: ReactNode; id?: string }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -65,6 +66,10 @@ export function LeftPanel() {
         </IconButton>
       </div>
       <div className="flex-1 overflow-y-auto">
+        <Section title="Live layers">
+          <LiveLayersSection />
+        </Section>
+
         <Section title="Intelligence layers" id="panel-layers">
           <ul role="radiogroup" aria-label="Intelligence layer" className="flex flex-col">
             {LAYERS.map((l) => {

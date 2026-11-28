@@ -3,7 +3,7 @@ import type { DataOrigin, Dataset } from '@/types/intel';
 import type { GeoData } from '@/lib/geo/countries';
 import { loadGeoData } from '@/lib/geo/countries';
 import { generateDemoDataset } from '@/lib/data/demoDataset';
-import { checkHealth, checkSnapshot, isEncrypted, loadLiveDataset, loadSnapshotDataset, type EncryptedSnapshotMeta } from '@/lib/data/apiClient';
+import { checkHealth, checkSnapshot, isEncrypted, loadLiveDataset, loadSnapshotDataset, snapshotVersion, type EncryptedSnapshotMeta } from '@/lib/data/apiClient';
 import { b64ToBytes, bytesToB64, deriveKeyBytes, WrongCredentialsError } from '@/lib/auth/crypto';
 import { recordFailedLogin } from '@/lib/counter';
 
@@ -35,6 +35,10 @@ interface DataState {
   auth: AuthState;
   encryptedMeta: EncryptedSnapshotMeta | null;
   pendingUpdates: number;
+  /** When live data was last checked for updates (epoch ms). */
+  lastRefresh: number | null;
+  /** Silent background refresh: swaps in new data only if it changed. */
+  refresh: () => Promise<void>;
   login: (username: string, password: string) => Promise<void>;
   logout: () => void;
   init: () => Promise<void>;
@@ -44,6 +48,8 @@ interface DataState {
 }
 
 let liveAbort: AbortController | null = null;
+/** Version (ETag) of the snapshot currently shown, for change detection. */
+let snapshotSeen: string | null = null;
 
 export const useDataStore = create<DataState>((set, get) => ({
   geo: null,
@@ -57,6 +63,7 @@ export const useDataStore = create<DataState>((set, get) => ({
   auth: 'none',
   encryptedMeta: null,
   pendingUpdates: 0,
+  lastRefresh: null,
 
   async init() {
     if (get().geoStatus === 'loading' || get().geoStatus === 'ready') return;
@@ -102,7 +109,8 @@ export const useDataStore = create<DataState>((set, get) => ({
         get().liveOrigin === 'snapshot'
           ? await loadSnapshotDataset(liveAbort.signal, get().auth === 'none' ? null : readSessionKey())
           : await loadLiveDataset(liveAbort.signal);
-      set({ dataset, datasetStatus: 'ready', backendAvailable: true, pendingUpdates: 0, auth: get().auth === 'none' ? 'none' : 'unlocked' });
+      set({ dataset, datasetStatus: 'ready', backendAvailable: true, pendingUpdates: 0, lastRefresh: Date.now(), auth: get().auth === 'none' ? 'none' : 'unlocked' });
+      if (get().liveOrigin === 'snapshot') void snapshotVersion().then((v) => (snapshotSeen = v));
     } catch (e) {
       if ((e as Error).name === 'AbortError') return;
       if (e instanceof WrongCredentialsError) {
@@ -126,7 +134,8 @@ export const useDataStore = create<DataState>((set, get) => ({
       } catch {
         /* private mode: stay signed in until reload */
       }
-      set({ dataset, datasetStatus: 'ready', datasetError: null, auth: 'unlocked' });
+      set({ dataset, datasetStatus: 'ready', datasetError: null, auth: 'unlocked', lastRefresh: Date.now() });
+      void snapshotVersion().then((v) => (snapshotSeen = v));
     } catch (e) {
       if (e instanceof WrongCredentialsError) recordFailedLogin();
       throw e;
@@ -141,6 +150,29 @@ export const useDataStore = create<DataState>((set, get) => ({
     }
     liveAbort?.abort();
     set({ dataset: null, datasetStatus: 'idle', auth: get().encryptedMeta ? 'locked' : 'none' });
+  },
+
+  async refresh() {
+    const { dataset, liveOrigin, auth } = get();
+    if (!dataset || dataset.mode !== 'live' || auth === 'locked') return;
+    try {
+      if (liveOrigin === 'snapshot') {
+        const version = await snapshotVersion();
+        if (version && version === snapshotSeen) {
+          set({ lastRefresh: Date.now() });
+          return;
+        }
+        const next = await loadSnapshotDataset(undefined, auth === 'none' ? null : readSessionKey());
+        snapshotSeen = version;
+        set({ dataset: next, lastRefresh: Date.now(), pendingUpdates: 0 });
+      } else if (liveOrigin === 'api') {
+        const next = await loadLiveDataset();
+        set({ dataset: next, lastRefresh: Date.now(), pendingUpdates: 0 });
+      }
+    } catch {
+      // Keep showing the current data; the next refresh tries again.
+      set({ lastRefresh: Date.now() });
+    }
   },
 
   notifyUpdate(n) {

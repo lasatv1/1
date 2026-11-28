@@ -272,7 +272,6 @@ function About() {
             <li><Kbd>/</Kbd> Search</li>
             <li><Kbd>Esc</Kbd> Close active panel</li>
             <li><Kbd>Shift</Kbd>+click Compare countries</li>
-            <li><Kbd>Space</Kbd> Play / pause timeline</li>
           </ul>
         </section>
         <div>

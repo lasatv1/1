@@ -5,6 +5,7 @@ import { useAppStore } from '@/state/appStore';
 import { startDerivedPipeline } from '@/state/derivedStore';
 import { subscribeToUpdates } from '@/lib/data/apiClient';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { useLiveClock } from '@/hooks/useLiveClock';
 import { TopBar } from '@/components/shell/TopBar';
 import { StatsStrip } from '@/components/shell/StatsStrip';
 import { LeftPanel } from '@/components/panels/LeftPanel';
@@ -14,6 +15,7 @@ import { SearchPalette } from '@/components/search/SearchPalette';
 import { Overlays } from '@/components/overlays/Overlays';
 import { Button, ErrorState, IconButton } from '@/components/common/ui';
 import { LoginPage } from '@/components/auth/LoginPage';
+import { LiveFeedRunners } from '@/live/LiveFeedRunners';
 
 // The WebGL bundle (three.js) is split out and loaded on demand.
 const GlobeView = lazy(() => import('@/components/globe/GlobeView'));
@@ -39,6 +41,7 @@ export function App() {
   const compact = useAppStore((s) => s.compact);
   const auth = useDataStore((s) => s.auth);
   useKeyboardShortcuts();
+  useLiveClock();
 
   // Responsive: desktop first; on narrower screens panels start collapsed so the globe
   // keeps priority, and they open as overlays rather than squeezing the viewport.
@@ -66,7 +69,7 @@ export function App() {
   useEffect(() => {
     // Push updates exist only with a running API; a static snapshot refreshes on reload.
     if (mode !== 'live' || origin !== 'api') return;
-    return subscribeToUpdates((m) => useDataStore.getState().notifyUpdate(m.newRecords));
+    return subscribeToUpdates(() => void useDataStore.getState().refresh());
   }, [mode, origin]);
 
   // Login-protected deployment: nothing but the sign-in screen until the data is decrypted.
@@ -123,6 +126,7 @@ export function App() {
       </div>
       <Timeline />
       <SearchPalette />
+      <LiveFeedRunners />
     </div>
   );
 }

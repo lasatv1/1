@@ -26,9 +26,16 @@ def derive_key(username: str, password: str, salt: bytes, iterations: int = ITER
     return hashlib.pbkdf2_hmac("sha256", f"{username}:{password}".encode(), salt, iterations, dklen=32)
 
 
+def site_salt(username: str) -> bytes:
+    """Stable per-site salt, so a signed-in browser's derived key keeps working across the
+    frequent republishes (a random salt per publish would sign everyone out each time).
+    The IV is still random per publish, which is what AES-GCM security requires."""
+    return hashlib.sha256(f"cyberthreat-atlas/snapshot-salt/v1:{username}".encode()).digest()[:16]
+
+
 def encrypt_bundle(bundle: dict, username: str, password: str) -> tuple[bytes, dict]:
     """Returns (ciphertext file bytes, public KDF parameters for meta.json)."""
-    salt = os.urandom(16)
+    salt = site_salt(username)
     iv = os.urandom(12)
     key = derive_key(username, password, salt)
     plaintext = gzip.compress(json.dumps(bundle, separators=(",", ":"), ensure_ascii=False).encode(), mtime=0)

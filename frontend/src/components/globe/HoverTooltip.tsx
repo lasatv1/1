@@ -5,11 +5,15 @@ import { useDerivedStore } from '@/state/derivedStore';
 import { CATEGORY_LABEL } from '@/lib/layers';
 import { fmtInt, fmtUtc } from '@/lib/format';
 import { SeverityBadge, BASIS_LABEL } from '@/components/common/ui';
+import { useLiveStore } from '@/live/liveStore';
+import { LIVE_FEED_BY_ID } from '@/live/feeds';
+import { livePosition } from './LiveLayers';
 
 /** Follows the pointer via rAF (no React re-render per mouse move). */
 export function HoverTooltip() {
   const country = useGlobeStore((s) => s.hoveredCountry);
   const connection = useGlobeStore((s) => s.hoveredConnection);
+  const live = useLiveStore((s) => s.hovered);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -29,18 +33,18 @@ export function HoverTooltip() {
       }
       raf = requestAnimationFrame(tick);
     };
-    if (country || connection) raf = requestAnimationFrame(tick);
+    if (country || connection || live) raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [country, connection]);
+  }, [country, connection, live]);
 
-  if (!country && !connection) return null;
+  if (!country && !connection && !live) return null;
   return (
     <div
       ref={ref}
       role="tooltip"
       className="pointer-events-none absolute left-0 top-0 z-20 min-w-[200px] max-w-[300px] rounded-sm border border-line-strong bg-elevated/95 px-3 py-2 shadow-[0_4px_16px_rgba(40,48,58,0.14)]"
     >
-      {connection ? <ConnectionTip id={connection} /> : country ? <CountryTip id={country} /> : null}
+      {live ? <LiveTip feed={live.feed} id={live.id} /> : connection ? <ConnectionTip id={connection} /> : country ? <CountryTip id={country} /> : null}
     </div>
   );
 }
@@ -108,6 +112,39 @@ function ConnectionTip({ id }: { id: string }) {
         <dd className="text-ink">{c.bases.map((b) => BASIS_LABEL[b]).join(', ')}</dd>
       </dl>
       <div className="mt-1.5 text-2xs text-ink-3">Click to investigate</div>
+    </div>
+  );
+}
+
+function LiveTip({ feed, id }: { feed: string; id: string }) {
+  const def = LIVE_FEED_BY_ID[feed];
+  const entity = useLiveStore((s) => s.feeds[feed]?.data?.entities.find((e) => e.id === id));
+  const line = useLiveStore((s) => s.feeds[feed]?.data?.lines?.find((l) => l.id === id));
+  if (!def || (!entity && !line)) return null;
+  const pos = entity ? livePosition(entity, Date.now()) : null;
+  return (
+    <div className="text-sm">
+      <div className="text-2xs uppercase tracking-[0.06em] text-ink-3">{def.name}</div>
+      <div className="font-medium text-ink">{entity?.label ?? line?.label}</div>
+      {entity?.sub && <div className="text-2xs text-ink-3">{entity.sub}</div>}
+      {entity && (
+        <dl className="mt-1.5 grid grid-cols-[96px_1fr] gap-y-0.5 text-2xs">
+          {entity.props.slice(0, 4).map(([k, v]) => (
+            <div key={k} className="contents">
+              <dt className="text-ink-3">{k}</dt>
+              <dd className="truncate text-ink">{v}</dd>
+            </div>
+          ))}
+          {pos && pos.altKm > 100 && (
+            <>
+              <dt className="text-ink-3">Altitude now</dt>
+              <dd className="tabular text-ink">{Math.round(pos.altKm).toLocaleString()} km</dd>
+            </>
+          )}
+        </dl>
+      )}
+      {def.caveat && <div className="mt-1.5 text-2xs text-ink-3">{def.caveat}</div>}
+      {entity && <div className="mt-1.5 text-2xs text-ink-3">Click for details</div>}
     </div>
   );
 }

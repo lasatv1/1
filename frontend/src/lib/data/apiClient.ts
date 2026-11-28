@@ -117,6 +117,21 @@ async function getStatic<T>(file: string, signal?: AbortSignal): Promise<T> {
   return (await res.json()) as T;
 }
 
+/**
+ * Cheap change check for the published snapshot (HEAD request): the ETag / Last-Modified
+ * of the data file. Lets the page refresh silently only when a new snapshot was deployed.
+ */
+export async function snapshotVersion(signal?: AbortSignal): Promise<string | null> {
+  try {
+    const meta = await getStatic<AnySnapshotMeta>('meta.json', signal);
+    const file = isEncrypted(meta) ? meta.file : 'events.json';
+    const res = await fetch(`${SNAPSHOT}${file}`, { method: 'HEAD', signal, cache: 'no-cache' });
+    return res.headers.get('etag') ?? res.headers.get('last-modified') ?? ('generatedAt' in meta ? meta.generatedAt : null);
+  } catch {
+    return null;
+  }
+}
+
 export async function checkSnapshot(signal?: AbortSignal): Promise<AnySnapshotMeta | null> {
   try {
     const meta = await getStatic<AnySnapshotMeta>('meta.json', signal);

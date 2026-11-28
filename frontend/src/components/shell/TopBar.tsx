@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Search, FlaskConical, RefreshCw, Radio, LogOut, Users } from 'lucide-react';
 import { counterEnabled, subscribeCounter } from '@/lib/counter';
+import { InfoconBadge } from '@/components/panels/LiveViews';
 import { useAppStore, type Overlay } from '@/state/appStore';
 import { useDataStore } from '@/state/dataStore';
 import { cx, Kbd } from '@/components/common/ui';
@@ -104,6 +105,7 @@ export function TopBar() {
             <RefreshCw size={12} /> {pending} new observations
           </button>
         )}
+        <InfoconBadge />
         {counterEnabled && <VisitorBadge />}
         <ThemeSwitch />
         <DataModeSwitch mode={mode} backend={backend} loading={status === 'loading'} />

@@ -4,13 +4,13 @@
 #   Settings → Secrets and variables → Actions → add CTA_DATABASE_URL (Neon), CTA_SITE_USER,
 #   CTA_SITE_PASSWORD (site login) and any API keys
 #
-# Every run: sync the feeds into Postgres → export a JSON snapshot → build the site →
-# publish to GitHub Pages. Without CTA_DATABASE_URL it still works, but keeps no history.
+# Every run: sync the feeds into Postgres → export an encrypted snapshot → publish live
+# layers (flights, ships, conflict, cables) → build the site → publish to GitHub Pages. Without CTA_DATABASE_URL it still works, but keeps no history.
 name: Publish site
 
 on:
   schedule:
-    - cron: "17 * * * *"      # hourly (minute 17 avoids the busy top of the hour)
+    - cron: "*/15 * * * *"    # every 15 minutes (GitHub may delay scheduled runs under load)
   push:
     branches: [main]
   workflow_dispatch: {}
@@ -50,6 +50,14 @@ jobs:
           CTA_ABUSEIPDB_API_KEY: ${{ secrets.CTA_ABUSEIPDB_API_KEY }}  # optional
           CTA_ABUSECH_AUTH_KEY: ${{ secrets.CTA_ABUSECH_AUTH_KEY }}    # optional
         run: python -m app.export --sync --encrypt --out ../frontend/public/snapshot
+
+      - name: Publish live layers (flights, ships, conflict, cables)
+        working-directory: backend
+        env:
+          CTA_AISSTREAM_API_KEY: ${{ secrets.CTA_AISSTREAM_API_KEY }}   # optional, free at aisstream.io
+          # Lets each run continue rolling windows/trails from what is already published.
+          CTA_PUBLISHED_BASE: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/live
+        run: python -m app.livefeeds --out ../frontend/public/live
 
       - uses: actions/setup-node@v4
         with:

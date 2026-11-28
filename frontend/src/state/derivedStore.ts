@@ -169,11 +169,12 @@ export function startDerivedPipeline() {
   started = true;
   useDataStore.subscribe((s, prev) => {
     if (s.dataset !== prev.dataset) {
-      if (s.dataset) {
+      const sameSource = !!s.dataset && !!prev.dataset && s.dataset.mode === prev.dataset.mode && s.dataset.origin === prev.dataset.origin;
+      if (s.dataset && !sameSource) {
         const { time, setTimePreset } = useAppStore.getState();
-        setTimePreset(time.preset === 'custom' ? '7d' : time.preset, s.dataset.extent[1]);
+        setTimePreset(time.preset === 'custom' ? '7d' : time.preset, Date.now());
+        useAppStore.setState({ sources: new Set(), connectionId: null });
       }
-      useAppStore.setState({ sources: new Set(), connectionId: null });
       schedule();
     }
     if (s.geo !== prev.geo) schedule();
