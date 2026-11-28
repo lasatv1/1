@@ -7,8 +7,13 @@ import { checkHealth, checkSnapshot, isEncrypted, loadLiveDataset, loadSnapshotD
 import { b64ToBytes, bytesToB64, deriveKeyBytes, WrongCredentialsError } from '@/lib/auth/crypto';
 import { recordFailedLogin } from '@/lib/counter';
 
-/** 'none' = no login needed; 'locked' = encrypted site, not signed in. */
-export type AuthState = 'none' | 'locked' | 'unlocked';
+/**
+ * 'checking' = not decided yet (nothing but a blank screen may render);
+ * 'none' = no login needed; 'locked' = sign-in required; 'unlocked' = signed in.
+ */
+export type AuthState = 'checking' | 'none' | 'locked' | 'unlocked';
+/** Set at build time for protected deployments: the app must never render without sign-in. */
+const REQUIRE_LOGIN = import.meta.env.VITE_REQUIRE_LOGIN === 'true';
 const SESSION_KEY = 'cta.session.key';
 const readSessionKey = () => {
   try {
@@ -60,7 +65,7 @@ export const useDataStore = create<DataState>((set, get) => ({
   datasetError: null,
   backendAvailable: null,
   liveOrigin: null,
-  auth: 'none',
+  auth: 'checking',
   encryptedMeta: null,
   pendingUpdates: 0,
   lastRefresh: null,
@@ -68,32 +73,46 @@ export const useDataStore = create<DataState>((set, get) => ({
   async init() {
     if (get().geoStatus === 'loading' || get().geoStatus === 'ready') return;
     set({ geoStatus: 'loading', geoError: null, datasetStatus: 'loading' });
-    try {
-      const geo = await loadGeoData();
-      set({ geo, geoStatus: 'ready' });
-    } catch (e) {
-      set({ geoStatus: 'error', geoError: e instanceof Error ? e.message : String(e), datasetStatus: 'idle' });
-      return;
-    }
+    // Decide whether sign-in is required FIRST (in parallel with the map data), so the app
+    // never renders, not even for a frame, before that is known.
     // Live data from the API if reachable, else a published snapshot (static hosting),
     // else the clearly labelled demo dataset. VITE_DATA_SOURCE=snapshot skips the API probe.
     const snapshotOnly = import.meta.env.VITE_DATA_SOURCE === 'snapshot';
-    const health = snapshotOnly ? null : await checkHealth();
-    const meta = health ? null : await checkSnapshot();
+    const geoP = loadGeoData().then(
+      (geo) => set({ geo, geoStatus: 'ready' }),
+      (e: unknown) => set({ geoStatus: 'error', geoError: e instanceof Error ? e.message : String(e), datasetStatus: 'idle' }),
+    );
+    const [health, meta] = await Promise.all([snapshotOnly ? Promise.resolve(null) : checkHealth(), checkSnapshot()]);
     const origin: DataOrigin | null = health ? 'api' : meta ? 'snapshot' : null;
     set({ backendAvailable: origin !== null, liveOrigin: origin });
-    if (isEncrypted(meta)) {
-      // Login-protected site: show nothing (not even demo data) until signed in.
-      set({ auth: 'locked', encryptedMeta: meta, datasetStatus: 'idle' });
-      if (readSessionKey()) await get().useLive(); // still signed in from earlier in this tab
+
+    if (isEncrypted(meta) || REQUIRE_LOGIN) {
+      // Protected site: nothing (not even demo data) until signed in.
+      const encryptedMeta = isEncrypted(meta) ? meta : null;
+      set({
+        encryptedMeta,
+        datasetStatus: 'idle',
+        datasetError: encryptedMeta ? null : 'The protected data could not be reached. Check your connection and retry.',
+      });
+      if (encryptedMeta && readSessionKey()) {
+        // Still signed in from earlier in this tab: stay on the blank screen while decrypting.
+        await geoP;
+        await get().useLive();
+        if (get().auth !== 'unlocked') set({ auth: 'locked' });
+        return;
+      }
+      set({ auth: 'locked' });
       return;
     }
+    set({ auth: 'none' });
+    await geoP;
+    if (get().geoStatus !== 'ready') return;
     if (origin) await get().useLive();
     else get().useDemo();
   },
 
   useDemo() {
-    if (get().auth === 'locked') return;
+    if (get().auth === 'locked' || get().auth === 'checking') return;
     liveAbort?.abort();
     const geo = get().geo;
     if (!geo) return;
@@ -107,9 +126,9 @@ export const useDataStore = create<DataState>((set, get) => ({
     try {
       const dataset =
         get().liveOrigin === 'snapshot'
-          ? await loadSnapshotDataset(liveAbort.signal, get().auth === 'none' ? null : readSessionKey())
+          ? await loadSnapshotDataset(liveAbort.signal, get().encryptedMeta ? readSessionKey() : null)
           : await loadLiveDataset(liveAbort.signal);
-      set({ dataset, datasetStatus: 'ready', backendAvailable: true, pendingUpdates: 0, lastRefresh: Date.now(), auth: get().auth === 'none' ? 'none' : 'unlocked' });
+      set({ dataset, datasetStatus: 'ready', backendAvailable: true, pendingUpdates: 0, lastRefresh: Date.now(), auth: get().encryptedMeta ? 'unlocked' : 'none' });
       if (get().liveOrigin === 'snapshot') void snapshotVersion().then((v) => (snapshotSeen = v));
     } catch (e) {
       if ((e as Error).name === 'AbortError') return;
@@ -149,12 +168,12 @@ export const useDataStore = create<DataState>((set, get) => ({
       /* ignore */
     }
     liveAbort?.abort();
-    set({ dataset: null, datasetStatus: 'idle', auth: get().encryptedMeta ? 'locked' : 'none' });
+    set({ dataset: null, datasetStatus: 'idle', auth: get().encryptedMeta || REQUIRE_LOGIN ? 'locked' : 'none' });
   },
 
   async refresh() {
     const { dataset, liveOrigin, auth } = get();
-    if (!dataset || dataset.mode !== 'live' || auth === 'locked') return;
+    if (!dataset || dataset.mode !== 'live' || auth === 'locked' || auth === 'checking') return;
     try {
       if (liveOrigin === 'snapshot') {
         const version = await snapshotVersion();
@@ -162,7 +181,7 @@ export const useDataStore = create<DataState>((set, get) => ({
           set({ lastRefresh: Date.now() });
           return;
         }
-        const next = await loadSnapshotDataset(undefined, auth === 'none' ? null : readSessionKey());
+        const next = await loadSnapshotDataset(undefined, get().encryptedMeta ? readSessionKey() : null);
         snapshotSeen = version;
         set({ dataset: next, lastRefresh: Date.now(), pendingUpdates: 0 });
       } else if (liveOrigin === 'api') {

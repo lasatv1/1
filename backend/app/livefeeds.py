@@ -116,10 +116,15 @@ def gdelt_conflict(client: httpx.Client) -> dict:
     idx = client.get("https://data.gdeltproject.org/gdeltv2/lastupdate.txt")
     idx.raise_for_status()
     listed = idx.text.split("\n")[0].split()[-1]
-    # GDELT lists an http:// URL; its https mirror can lag a few minutes behind a new slice,
-    # so try the listed address first (following redirects) and fall back to the other.
+    # GDELT announces a new 15-minute slice shortly before the file is actually served, so
+    # if the newest slice 404s, fall back to the previous ones. Nothing is lost: the merged
+    # 24 h window picks the newest slice up on the next run.
+    stamp = listed.rsplit("/", 1)[-1].split(".")[0]  # e.g. 20261128124500
+    base_t = calendar.timegm(time.strptime(stamp, "%Y%m%d%H%M%S"))
     z = None
-    for url in (listed, listed.replace("http://", "https://", 1)):
+    for back in range(4):
+        slice_stamp = time.strftime("%Y%m%d%H%M%S", time.gmtime(base_t - back * 900))
+        url = f"http://data.gdeltproject.org/gdeltv2/{slice_stamp}.export.CSV.zip"
         z = client.get(url, follow_redirects=True)
         if z.status_code == 200:
             break

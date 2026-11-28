@@ -11,6 +11,8 @@ import { counterEnabled, subscribeCounter, type CounterKey } from '@/lib/counter
  */
 export function LoginPage() {
   const login = useDataStore((s) => s.login);
+  const unreachable = useDataStore((s) => !s.encryptedMeta);
+  const loadError = useDataStore((s) => s.datasetError);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [show, setShow] = useState(false);
@@ -26,6 +28,7 @@ export function LoginPage() {
     setBusy(true);
     setError(null);
     try {
+      if (unreachable) throw new Error('unreachable');
       await login(username, password);
     } catch (err) {
       setError(err instanceof WrongCredentialsError ? 'Invalid username or password.' : 'Could not load the protected data. Try again.');
@@ -94,6 +97,14 @@ export function LoginPage() {
             </button>
           </div>
 
+          {unreachable && (
+            <p role="alert" className="mb-4 rounded-sm border border-[#4a2626] bg-[#1a0e0e] px-3 py-2 text-xs text-[#d9a19c]">
+              {loadError ?? 'The protected data could not be reached.'}{' '}
+              <button type="button" className="underline" onClick={() => location.reload()}>
+                Retry
+              </button>
+            </p>
+          )}
           {error && (
             <p role="alert" className="mb-4 rounded-sm border border-[#4a2626] bg-[#1a0e0e] px-3 py-2 text-xs text-[#d9a19c]">
               {error}

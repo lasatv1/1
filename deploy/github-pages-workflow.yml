@@ -69,6 +69,8 @@ jobs:
         env:
           VITE_BASE: /${{ github.event.repository.name }}/
           VITE_DATA_SOURCE: snapshot
+          # Never render the app before sign-in (blank screen, then the login page).
+          VITE_REQUIRE_LOGIN: "true"
           # Public live visit counters (abacus.jasoncameron.dev); remove to disable.
           VITE_COUNTER_NAMESPACE: ${{ github.repository_owner }}-${{ github.event.repository.name }}-cta
         run: |

@@ -72,7 +72,10 @@ export function App() {
     return subscribeToUpdates(() => void useDataStore.getState().refresh());
   }, [mode, origin]);
 
-  // Login-protected deployment: nothing but the sign-in screen until the data is decrypted.
+  // Until we know whether sign-in is required, render only a blank (black) screen, so the
+  // app can never flash before the login page.
+  if (auth === 'checking') return <div className="h-full w-full bg-[#000]" aria-busy="true" aria-label="Loading" />;
+  // Protected deployment: nothing but the sign-in screen until the data is decrypted.
   if (auth === 'locked') return <LoginPage />;
 
   return (
